@@ -359,3 +359,10 @@ check these new locations first. **Extend this list as you discover more.**
   `CONFIG_MMC_MTK_PRO` guard (`__maybe_unused`) for the Trustonic-DCI
   users; landmine noted: `mtk-mmc-dbg.c` has a same-named array, unify if
   `CONFIG_MMC_DEBUG` is ever enabled. Queued: mt6368/gpufreq/ged_kpi.
+- **2026-09-24 (early):** Fourth donor-silently-incomplete subsystem found:
+  `CONFIG_CPU_FREQ` unset tree-wide (no governors, no scaling, no MTK
+  binding) — root cause behind the cm_mgr
+  `cpufreq_frequency_table_target` error. Same bug class as SOUND,
+  REGULATOR, INPUT_TOUCHSCREEN. Fix approved: `CONFIG_CPU_FREQ=y` +
+  `CONFIG_ARM_MEDIATEK_CPUFREQ_HW=y` (HW-engine driver matches MT6833).
+  ds28e16 deferred to battery phase; ged_kpi still awaiting DRM call.
