@@ -338,3 +338,12 @@ check these new locations first. **Extend this list as you discover more.**
   from `ecdsasignature.asn1.[co]` with no kbuild generation rule;
   `CONFIG_CRYPTO_ECDSA` is pulled in via selects, not present in our
   defconfig. Diagnosing the select chain before fixing.
+- **2026-09-24 (early):** ECDSA vendor block resolved: `crypto/Makefile`
+  N17/HQ-293392 builds ecdh+ecdsa unconditionally with no Kconfig guard;
+  the asn1 generation pattern exists but needs `CONFIG_ASN1`, which
+  neither our defconfig nor gold's resolves — the donor is broken the
+  same way (proven, not our regression). Fix: commented out the 4 ecdsa
+  lines + `obj-y ecdsa_generic.o` with the proof in a comment; ecdh half
+  untouched. Safe: zero asymmetric-key consumers in this config
+  (no X.509/PKCS7/IMA/EVM/MODULE_SIG) and zero "ecdsa" references in
+  crypto/security/net. Rebuild running.
