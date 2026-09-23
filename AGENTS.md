@@ -377,3 +377,8 @@ check these new locations first. **Extend this list as you discover more.**
 - **2026-09-24 (early):** Possible 5th silent-incomplete: CONFIG_COMPAT
   unset (atf_log.c needs proc_compat_ioctl). Check donor first; if
   donor sets it, enable; else re-gate the source line on CONFIG_COMPAT.
+- **2026-09-24 (early):** camera_dip.c wakelock pattern: file is
+  half-ported — active path uses wakeup_source/__pm_stay_awake but a
+  legacy #else branch keeps struct wake_lock behind deleted
+  linux/wakelock.h. Correct fix is cutting the dead branch (~10
+  lines), not gating the driver. CONFIG_MTK_CAMERA_DIP_ISP6S stays.
