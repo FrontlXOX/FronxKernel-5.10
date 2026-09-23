@@ -382,3 +382,15 @@ check these new locations first. **Extend this list as you discover more.**
   legacy #else branch keeps struct wake_lock behind deleted
   linux/wakelock.h. Correct fix is cutting the dead branch (~10
   lines), not gating the driver. CONFIG_MTK_CAMERA_DIP_ISP6S stays.
+- **2026-09-24 (early):** New error class: code gated on unset configs.
+  Two instances: (1) mtk_charger.c prototype trapped in #ifdef MODULE
+  (invisible on monolithic builds — hoist above the guard); (2)
+  camera_mfb.h MFB_MapTable trapped in #ifdef CONFIG_COMPAT (vendor
+  copy-paste — move the plain struct out, keep compat_* guarded).
+- **2026-09-24 (early):** Frame-limit pattern: per-file
+  -Wframe-larger-than in the driver's Makefile. tweetnacl needed 4096,
+  emi-mpu needs 8192 (4256 > 4096). Set per-file, not globally.
+- **2026-09-24 (early):** Defconfig fold half-worked: armv8.x prompts
+  (PTR_AUTH/BTI/MTE) gone, but general-options prompts (JUMP_LABEL,
+  SECCOMP, LTO, VMAP_STACK, RELR) still fire at build start despite
+  stored values — deterministic noise, cause under investigation.
