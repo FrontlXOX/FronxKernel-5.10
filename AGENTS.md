@@ -347,3 +347,9 @@ check these new locations first. **Extend this list as you discover more.**
   untouched. Safe: zero asymmetric-key consumers in this config
   (no X.509/PKCS7/IMA/EVM/MODULE_SIG) and zero "ecdsa" references in
   crypto/security/net. Rebuild running.
+- **2026-09-24 (early):** Rebuild #2 failed at 90s past ECDSA: `-Werror`
+  on dead declarations in our ported `wl2866d.c` (5 unused locals/label —
+  this tree builds with `CONFIG_WERROR=y`) and a pre-existing unused
+  function `set_idac_trim_val` in donor `mt6338.c`. Fix approved: delete
+  the dead lines in our port; for the donor file, remove only if verified
+  truly unreferenced, else report first.
