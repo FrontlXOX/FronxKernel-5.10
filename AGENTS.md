@@ -394,3 +394,11 @@ check these new locations first. **Extend this list as you discover more.**
   (PTR_AUTH/BTI/MTE) gone, but general-options prompts (JUMP_LABEL,
   SECCOMP, LTO, VMAP_STACK, RELR) still fire at build start despite
   stored values — deterministic noise, cause under investigation.
+- **2026-09-24 (early):** Frame-limit ceiling: per-file
+  -Wframe-larger-than stops at 8192. Beyond that, fix the code
+  (shrink the buffer or kmalloc it) — a 16KB frame on arm64's 16KB
+  stack is an overflow waiting to happen. frame_sync_console.c (8256)
+  gets shrunk, not a 16384 flag.
+- **2026-09-24 (early):** Defconfig prompts fully resolved — zero
+  config prompts in build 16. The earlier persistence was build-time
+  sync answering from EOF; with all values stored it's silent.
