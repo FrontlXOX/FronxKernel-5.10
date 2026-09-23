@@ -82,7 +82,8 @@ Checklist, in order (from the audit):
    display GPIOs verified identical both sides (no pinmux adaptation);
    dtc-clean (23 KB blob, `lcmname` + `intr_gpio_num=0x9` verified).
    New branch `everpal-5.10` in the `kernel_xiaomi_gold` fork;
-   `gold-s-oss` stays a pristine donor.
+   `gold-s-oss` stays a pristine donor. `everpal-510.dtb` wired into
+   `mediatek/Makefile` (the donor's own k510 file was never wired).
 2. **Defconfig** (`arch/arm64/configs/`): ✅ done 2026-09-23 —
    `everpal_510_defconfig` (donor + 6 lines). All audit MT6360/audio/
    touch mappings were already present. Fixed 2 silent-drops: the
@@ -91,11 +92,21 @@ Checklist, in order (from the audit):
    decision: dmabuf heaps, no ION. Note: this donor builds monolithic
    (`# CONFIG_MODULES` unset) — zero module-load-order hazards for
    bringup; revisit modularization later.
-3. **Battery auth:** adapt the `auth_battery.dtsi` pattern → GPIO53 +
-   `ds28e16` compat in `drivers/power/supply/battery_secrete/ds28e30.c`
-   (or port `drivers/misc/maxim/`); needs a ONEWIRE_GPIO-equivalent path.
-4. **Touch:** point the board at the NT36672C 1080x2400 variant; confirm
-   the panel matches everpal hardware.
+3. **Battery auth:** ✅ done 2026-09-23 — ported 4.14
+   `drivers/misc/maxim/` verbatim (3,881 lines across 11 files:
+   ds28e16.c, onewire_gpio.c bit-bang, SHA384/ucl) instead of aliasing
+   onto `ds28e30.c` — different chips, different command maps; aliasing
+   risked silent battery-auth misbehavior. DTS: onewire pinctrl (GPIO53
+   active/sleep) + `onewire_gpio` + `maxim_ds28e16` nodes, verified in
+   blob. Defconfig `BATT_VERIFY_BY_DS28E16=y` + `ONEWIRE_GPIO=y` resolve.
+   Caveat: 4.14-era driver needs a compile check at first full build
+   (API drift unknown).
+4. **Touch:** ✅ done 2026-09-23 — neither 5.10 candidate dtsi fits
+   (verified, not guessed: wrong chip / wrong bus+GPIO). Created
+   `cust_mt6833_everpal_touch_nt36672c.dtsi` from 4.14 content (SPI1
+   pins 27-30, reset 13, irq 14, 9.6 MHz, MP tables verbatim); no
+   Makefile/Kconfig changes needed (TOUCH_LISTS mechanism). Defconfig:
+   added `INPUT_TOUCHSCREEN=y` (third silent-drop catch).
 5. **Camera:** carry everpal's 5-sensor list; verify each imgsensor driver
    exists in the 5.10 tree first.
 6. **NFC** (`i2c3`/`st21nfc`): enable bus + child; verify the
@@ -254,3 +265,10 @@ check these new locations first. **Extend this list as you discover more.**
   on new `everpal-5.10` branch in the `kernel_xiaomi_gold` fork;
   `gold-s-oss` stays pristine. Standing rule added: temp-dir
   resolved-grep check on every defconfig edit.
+- **2026-09-23 (night):** Phase 1 items 3–4 complete, reviewed, approved:
+  battery auth via verbatim port of 4.14 `drivers/misc/maxim/` (11
+  files; GPIO53 onewire pinctrl + DTS nodes; defconfig symbols resolve;
+  compile check deferred to first full build) and everpal-specific
+  NT36672C touch dtsi (SPI1, reset 13; third silent-drop catch:
+  `INPUT_TOUCHSCREEN`). dtbs build passes (68 KB blob, 13 new nodes
+  verified). Committed on `everpal-5.10`.
