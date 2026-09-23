@@ -58,16 +58,53 @@ What the donor already provides:
 Goal: a clean 5.10 kernel that boots on everpal hardware. **No root, no
 tweaks, no scheduler changes.**
 
-1. Base the work on `gold-s-oss` as-is.
-2. **Defconfig:** start from `k6833pv1_64_k510_defconfig`, add everpal board
-   options. Do NOT copy the 4.14 defconfig over.
-3. **Device tree:** adapt everpal board specifics onto the gold base —
-   display panel, touchscreen controller, fingerprint, camera sensors,
-   and any `evergo.dts` / `k6833v1_64.dts` tweaks from the 4.14 tree.
-   This is the main work item of the whole port.
-4. Build `Image.gz` + `dtbo.img` + modules. Test-boot by packing into the
-   existing boot image (magiskboot / AIK) — **no full ROM build required.**
-5. Success criteria: boots, display works, touch works, basic I/O works.
+Key findings from the 2026-09-23 tree audit (both trees on the build
+machine — `android_kernel_xiaomi_mt6833#lineage-24.0` vs
+`kernel_xiaomi_gold#gold-s-oss`):
+- Same display panel on both sides
+  (`nt35595_fhd_dsi_cmd_truly_nt50358_drv`) — display should carry over.
+- Same MTK touch framework; the 5.10 side is a superset. everpal uses the
+  NT36672C 1080x2400 variant — point the board file at it (verify the
+  panel resolution matches everpal hardware, not gold's).
+- MT6360 PMU: 5.10 uses the refactored new-generation drivers
+  (`MFD_MT6360` / `CHARGER_MT6360` / `REGULATOR_MT6360` / `LEDS_MT6360`,
+  mostly `=m`). Map the old 4.14 symbols to these — do not copy old
+  drivers.
+- Camera sensor sets are disjoint (only `ov16a1q` overlaps, and naming
+  variants differ) — carry everpal's 5-sensor list; verify each imgsensor
+  driver exists in the 5.10 tree before wiring.
+
+Checklist, in order (from the audit):
+
+1. **Board file shell:** new everpal 5.10 `.dts` on the 5.10 `mt6833.dts`
+   base. Stub the missing `#include <k6833pv1_64_k510/cust.dtsi>` vendor
+   overlay — the build breaks without it.
+2. **Defconfig** (`arch/arm64/configs/`): MT6360 new-gen symbols (`=m`),
+   audio `SND_SOC_MT6833`/`MT6359P` modules, touch string incl. NT36672C.
+   Decide ION-vs-dmabuf per the donor.
+3. **Battery auth:** adapt the `auth_battery.dtsi` pattern → GPIO53 +
+   `ds28e16` compat in `drivers/power/supply/battery_secrete/ds28e30.c`
+   (or port `drivers/misc/maxim/`); needs a ONEWIRE_GPIO-equivalent path.
+4. **Touch:** point the board at the NT36672C 1080x2400 variant; confirm
+   the panel matches everpal hardware.
+5. **Camera:** carry everpal's 5-sensor list; verify each imgsensor driver
+   exists in the 5.10 tree first.
+6. **NFC** (`i2c3`/`st21nfc`): enable bus + child; verify the
+   `mediatek,nfc-gpio-v2` driver exists in 5.10.
+7. **Fingerprint** (`spi5`/`fpc1542`): port driver + Kconfig/Makefile +
+   pinctrl + `fpsensor_fp_eint` node. (Assess `&keypad`/`&mtk_leds` from
+   the 5.10 board file during bringup — keep if harmless.)
+8. **Haptics** (`i2c9`/`aw8697`): full port last — driver + node +
+   calibration verbatim. Biggest single item; **not needed for boot.**
+9. **Audio:** enable `SND_SOC_MT6359P` modules; resolve the
+   `ACCDET_EINT_IRQ` binding question (§10).
+10. **Boot test gates:** `sys.boot_completed=1` → dumpsys gpu →
+    verifydevice.py. Scheduler work (WALT/BORE/EAS) is explicitly
+    deferred — not needed for stock boot.
+
+Then: build `Image.gz` + `dtbo.img` + modules, pack into the existing
+boot image (magiskboot / AIK), flash, boot. **No full ROM build required.**
+Success criteria: boots, display works, touch works, basic I/O works.
 
 ### Phase 2: Forward-port FronxKernel features, one at a time
 
@@ -85,21 +122,37 @@ port progresses.
 | # | Feature | 4.14 location | 5.10 gold location | Port notes |
 |---|---------|---------------|--------------------|------------|
 | 1 | ReSukiSU v4.2.0-rc3 + SUSFS v2.3.0 | `ResukiSU-SusFS.patch` at kernel root (4752 lines, applied one-shot by `build.sh`) | n/a — regenerate | Both support 5.10. Regenerate the combined patch for 5.10 the same way the 4.14 one was made. Do not hand-port 4752 lines. |
-| 2 | BORE big-task rotation (default on) | `kernel/sched/eas_plus.c` (MTK EAS+) | 5.10 MTK EAS (reworked upstream) | This is a **default-value tweak**, not a scheduler port. Find the equivalent tunable in 5.10's EAS code. |
-| 3 | Mali DVFS period 100ms → 50ms | `drivers/misc/mediatek/gpu/gpu_mali/mali_valhall/mali-r32p1/.../mali_kbase_config_defaults.h` | `drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/.../mali_kbase_config_defaults.h` | Same file, new path. Direct port. |
-| 4 | accdet plugout debounce → 100ms | `drivers/misc/mediatek/accdet/mt6359/accdet.c` | `sound/soc/codecs/mt6359p-accdet.c` | Same logic, new location (MTK moved accdet under sound/soc in 5.10). Note PMIC is now `mt6359p`. |
-| 5 | DTS board tweaks | `arch/arm64/boot/dts/mediatek/evergo.dts`, `k6833v1_64.dts` | `arch/arm64/boot/dts/mediatek/mt6833.dts` (+ board file to create/adapt) | **Main work item.** Carry everpal board specifics onto the 5.10 base. |
+| 2 | BORE big-task rotation (default on) | `kernel/sched/eas_plus.c` (MTK EAS+) | n/a — stock `kernel/sched/` only (no `eas_plus.c`, no WALT, no BORE) | No MTK EAS in the 5.10 donor, so this is **not** a default-value tweak anymore — it becomes a scheduler-backport task, deferred past stock boot (see §5 item 10). |
+| 3 | Mali DVFS period 100ms → 50ms | `drivers/misc/mediatek/gpu/gpu_mali/mali_valhall/mali-r32p1/.../mali_kbase_config_defaults.h` | `drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_config_defaults.h` (confirmed) | Same file, new path. Direct port. |
+| 4 | accdet plugout debounce → 100ms | `drivers/misc/mediatek/accdet/mt6359/accdet.c` | `sound/soc/codecs/mt6359p-accdet.c` (confirmed) | Same logic, new location (MTK moved accdet under sound/soc in 5.10). Note PMIC is now `mt6359p`. Open: whether 5.10 needs the `ACCDET_EINT_IRQ` binding (§10). |
+| 5 | DTS board tweaks | `arch/arm64/boot/dts/mediatek/evergo.dts`, `k6833v1_64.dts` | `arch/arm64/boot/dts/mediatek/mt6833.dts` (+ board file to create/adapt) | **Main work item.** evergo-only nodes to carry: `fpsensor_fp_eint` (Goodix EINT, pio 18), `i2c3`/`st21nfc@8` (NFC), `i2c9`/`aw8697_haptic@5a` (full calibration), `maxim_ds28e16`, `onewire_gpio` (GPIO53), `spi5`/`fpc_spi@0`. See §5 checklist. |
 | 6 | ThermalMgmt v2 | Kernel thermal tunables: DVFSRC, down_rate, migration params, Mali `13000000` clock paths, CCI mode lock | MTK thermal framework in 5.10 | Re-tune against 5.10 sysfs paths; verify each path still exists before assuming. |
 | 7 | Fronx branding | `Branding.patch` at kernel root (13 lines) | n/a | Trivial. Apply last. |
 | 8 | `build.sh` | Kernel root (outputs zip+img to EverpalTweaks `out/`, PI-X repack, auto-revert) | n/a | Adapt paths for the 5.10 tree layout (§7). Build logic is kernel-version-agnostic. |
+| 9 | MT6360 PMU (charger/regulator/LED) | `MFD_MT6360_PMU`, `MT6360_PMU_CHARGER`, `MT6360_PMU_FLED`, `MT6360_PMIC`, `MT6360_LDO` (`=y`) | `MFD_MT6360`, `CHARGER_MT6360`, `REGULATOR_MT6360`, `LEDS_MT6360`, `AUXADC`, `TCPC_MT6360` (`=m`) | Map old→new symbols; sources exist (`drivers/mfd/mt6360-core.c`, `drivers/power/supply/mt6360_charger.c`, `drivers/regulator/mt6360-regulator.c`, `drivers/leds/leds-mt6360.c`). Do not copy old drivers. |
+| 10 | Battery auth (DS28E16 + onewire) | `drivers/misc/maxim/` + `onewire_gpio` (`xiaomi,onewire_gpio`, GPIO53) | `drivers/power/supply/battery_secrete/ds28e30.c` (ds28e30-only match) + `drivers/w1/masters/w1-gpio.c` | Extend `ds28e30.c` of-match with `maxim,ds28e16`, or port `drivers/misc/maxim/`; adapt the `auth_battery.dtsi` pattern to GPIO53 + everpal pinctrl. |
+| 11 | Fingerprint (FPC1542, SPI) | `fpc1542/mtk_spi.c` + `spi5`/`fpc_spi@0` node + `fpsensor_fp_eint` | n/a — only generic `FPC_FINGERPRINT` (`fpc1022_tee.c`, TEE-based) | Port driver + Kconfig/Makefile + pinctrl + both DTS nodes. |
+| 12 | Haptics (AW8697) | `INPUT_AW8697_HAPTIC` + `i2c9`/`aw8697_haptic@5a` node (full calibration: vib tables, wf_0..wf_9) | n/a — zero `*aw8697*` in tree | Full port (driver + node + calibration verbatim). Deferred — not needed for boot. Biggest single item. |
+| 13 | Camera sensors | `cust_evergo_camera.dtsi`: imx355, ov16a1qofilm, ov16a1qqtech, ov50c40ofilm, s5kjn1sunny | `cust_mt6833_gold_camera.dtsi`: ov08d10, ov16a1q, ov50d40, ov64b40, s5khm6 | Disjoint sets. Carry everpal's list; verify each imgsensor driver exists in 5.10 before wiring. |
+| 14 | Touchscreen variant | `cust_mt6833_touch_nt36672c_1080x2400.dtsi` | NT36672C drivers + `cust_mt6833_touch_1080x2400.dtsi` present | Point board file at everpal's 1080x2400 variant; verify panel resolution. |
+| 15 | NFC (ST21NFC) | `i2c3` + `st21nfc@8` (`mediatek,nfc-gpio-v2`) | i2c buses present in 5.10 `mt6833.dts` | Enable bus + port child; verify the `mediatek,nfc-gpio-v2` driver exists in 5.10. |
 
 ## 7. Known 4.14 → 5.10 path moves (MTK reorganization)
 
 MediaTek reorganized the driver tree in 5.10. When a 4.14 path is missing,
 check these new locations first. **Extend this list as you discover more.**
 
-- `drivers/misc/mediatek/gpu/` → `drivers/gpu/mediatek/`
-- `drivers/misc/mediatek/accdet/` → `sound/soc/codecs/`
+- `drivers/misc/mediatek/gpu/` → `drivers/gpu/mediatek/` (confirmed:
+  `mali_kbase_config_defaults.h` under
+  `drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/`)
+- `drivers/misc/mediatek/accdet/` → `sound/soc/codecs/` (confirmed:
+  `mt6359p-accdet.c`; PMIC renamed `mt6359` → `mt6359p`)
+- MT6360 PMU stack refactored: `MFD_MT6360_PMU` / `MT6360_PMU_CHARGER` /
+  `MT6360_PMU_FLED` / `MT6360_PMIC` / `MT6360_LDO` → `MFD_MT6360` /
+  `CHARGER_MT6360` / `REGULATOR_MT6360` / `LEDS_MT6360` (+ `AUXADC`,
+  `TCPC_MT6360`), mostly `=m`
+- Audio machine driver modularized + renamed: `SND_SOC_MT6833_MT6359`
+  → `SND_SOC_MT6833` + `SND_SOC_MT6833_MT6359P`
 - `drivers/misc/mediatek/` (other subdirs) → check `drivers/` top level and
   `drivers/soc/mediatek/` before concluding a driver is gone
 
@@ -142,8 +195,18 @@ check these new locations first. **Extend this list as you discover more.**
 
 ## 10. Open questions (for Shovit / his developers)
 
-- Board diff gold vs everpal: exact display panel, touchscreen controller,
-  fingerprint reader, camera sensor models. Needed for §5 Phase 1 step 3.
+- ACCDET EINT binding: does 5.10 `mt6359p-accdet` need the
+  `ACCDET_EINT_IRQ` / `ACCDET_SUPPORT_EINT0` binding, or a different IRQ
+  binding? (4.14 defconfig had them; 5.10 lacks them.)
+- ION vs dmabuf: decide per the donor defconfig (§5 checklist item 2).
+- `&keypad` / `&mtk_leds` in the 5.10 board file: do they claim GPIOs
+  that everpal uses? Keep if harmless, drop on conflict.
+- Panel resolution: confirm 1080x2400 is the everpal panel (not gold's).
+- imgsensor drivers: verify imx355, ov16a1qofilm, ov16a1qqtech,
+  ov50c40ofilm, s5kjn1sunny all exist under 5.10
+  `drivers/misc/mediatek/imgsensor/` before wiring the camera list.
+- `mediatek,nfc-gpio-v2` driver: present in the 5.10 tree?
+- `spi5` label: present in 5.10 `mt6833.dts`?
 - ReSukiSU + SUSFS 5.10 patch generation: confirm the exact procedure used
   for the 4.14 combined patch so it can be repeated for 5.10.
 - ThermalMgmt v2: confirm where its tunables live (kernel driver vs
@@ -159,3 +222,11 @@ check these new locations first. **Extend this list as you discover more.**
   Per-item port feasibility verified against the gold tree — all
   FronxKernel 1.0 customizations have a 5.10 path; board DTS adaptation
   is the main work item.
+- **2026-09-23 (evening):** Full tree audit on the build machine (4.14
+  `lineage-24.0` vs gold `gold-s-oss`; donor confirmed at `bd6f35a`).
+  Findings folded into §5–§7 and §10: same panel, same touch framework,
+  MT6360 new-gen drivers present in 5.10; the real port work is the
+  fingerprint driver, AW8697 (deferred past boot), DS28E16/onewire
+  compat, the camera sensor list, and NFC verification. BORE is not a
+  default-tweak in 5.10 (no MTK EAS in the donor) — it becomes a
+  scheduler-backport task. Nothing structural blocks a stock boot.
