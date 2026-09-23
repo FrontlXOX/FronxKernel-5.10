@@ -333,3 +333,8 @@ check these new locations first. **Extend this list as you discover more.**
   in 28s on the `modules` goal — donor builds monolithic, goal invalid;
   retry with `Image.gz dtbs`. Defconfig cruft noted (not blocking):
   `SND_SOC_MT6789_MT6366`/`SND_SOC_MT6885_MT6359P` enabled for other SoCs.
+- **2026-09-24 (early):** Second build attempt failed at 77s: vendor block
+  at `crypto/Makefile:190-200` (N17/HQ-293392) builds `ecdsa_generic.o`
+  from `ecdsasignature.asn1.[co]` with no kbuild generation rule;
+  `CONFIG_CRYPTO_ECDSA` is pulled in via selects, not present in our
+  defconfig. Diagnosing the select chain before fixing.
