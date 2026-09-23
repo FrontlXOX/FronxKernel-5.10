@@ -107,13 +107,28 @@ Checklist, in order (from the audit):
    pins 27-30, reset 13, irq 14, 9.6 MHz, MP tables verbatim); no
    Makefile/Kconfig changes needed (TOUCH_LISTS mechanism). Defconfig:
    added `INPUT_TOUCHSCREEN=y` (third silent-drop catch).
-5. **Camera:** carry everpal's 5-sensor list; verify each imgsensor driver
-   exists in the 5.10 tree first.
-6. **NFC** (`i2c3`/`st21nfc`): enable bus + child; verify the
-   `mediatek,nfc-gpio-v2` driver exists in 5.10.
-7. **Fingerprint** (`spi5`/`fpc1542`): port driver + Kconfig/Makefile +
-   pinctrl + `fpsensor_fp_eint` node. (Assess `&keypad`/`&mtk_leds` from
-   the 5.10 board file during bringup — keep if harmless.)
+5. **Camera:** in progress — sensor sets are disjoint. Only `ov16a1q`
+   exists in 5.10 (everpal's ofilm variant needs adapting, not porting).
+   Missing and being ported from 4.14 (same dir layout +
+   `imgsensor_sensor_list` wiring): imx355 (+imx355sunny), ov50c40,
+   s5kjn1, ov16a1qqtech. No camera dtsi until the drivers land (wiring
+   one early would break the build).
+6. **NFC** (`i2c3`/`st21nfc`): ✅ done 2026-09-23 — adapted, not copied:
+   5.10's st21nfc binds `st,st21nfc` + `irq-gpios`/`reset-gpios`, while
+   4.14's `mediatek,nfc-gpio-v2` bare-number style is incompatible. New
+   node: i2c3@400kHz, addr 0x08, RST pio92, IRQ pio5 EDGE_RISING
+   (verified default in both drivers' code). Bus label `i2c3` confirmed
+   in 5.10 base.
+7. **Fingerprint** (`spi5`/`fpc1542`): ✅ done 2026-09-23 — `spi5` label
+   confirmed in 5.10 base; ported `fpc1542/` (driver + Kconfig +
+   Makefile); TEE includes repointed
+   `drivers/misc/mediatek/teei/` → `drivers/tee/teei/` (both exist in
+   5.10; TEE surface is 3 symbols, `uuid_fp` present both sides — low
+   risk, compile-time proof pending). DTS: pinctrl (RST pio17) +
+   `spi5`/`fpc_spi@0` + EINT pio18; 5.10 base lacked the
+   `fpsensor_fp_eint` stub — defined locally (driver probe fails
+   `-EINVAL` without it). Defconfig `MTK_FINGERPRINT_SUPPORT` +
+   `INPUT_FINGERPRINT_FPC1542` resolve.
 8. **Haptics** (`i2c9`/`aw8697`): full port last — driver + node +
    calibration verbatim. Biggest single item; **not needed for boot.**
 9. **Audio:** enable `SND_SOC_MT6359P` modules; resolve the
@@ -211,9 +226,12 @@ check these new locations first. **Extend this list as you discover more.**
 
 ## 9. Build & test
 
-- **Defconfig start:** `k6833pv1_64_k510_defconfig`
+- **Defconfig start:** `k6833pv1_64_k510_defconfig` → `everpal_510_defconfig`
 - **Toolchain:** as per the gold tree / existing `build.sh` — verify before
   the first build, do not assume.
+- **Toolchain quirk (2026-09-23):** host dtc 1.7.2 rejects explicit
+  `fragment@N` blocks (proven with minimal repro) — new root nodes in
+  overlays must use the `&{/}` override style.
 - **Test method:** build `Image.gz` + `dtbo.img` (+ modules), pack into the
   existing everpal boot image with magiskboot/AIK, flash, boot. No full ROM
   build is needed to validate the kernel.
@@ -272,3 +290,11 @@ check these new locations first. **Extend this list as you discover more.**
   NT36672C touch dtsi (SPI1, reset 13; third silent-drop catch:
   `INPUT_TOUCHSCREEN`). dtbs build passes (68 KB blob, 13 new nodes
   verified). Committed on `everpal-5.10`.
+- **2026-09-24 (early):** Phase 1 items 6–7 complete, reviewed, approved:
+  NFC via `st,st21nfc` binding adaptation (i2c3, RST pio92, IRQ pio5) and
+  fpc1542 fingerprint port (TEE includes repointed; `fpsensor_fp_eint`
+  stub defined locally after finding 5.10 base lacks it). dtbs passes
+  (77 KB blob, all six new compatibles verified). Committed as 4dd4657
+  on `everpal-5.10`. Item 5 (camera) unblocked as a sensor-driver port:
+  imx355/ov50c40/s5kjn1/ov16a1qqtech from 4.14, ov16a1q ofilm adapted in
+  place. Item 9 (audio ACCDET binding) still open.
