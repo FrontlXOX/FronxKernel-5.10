@@ -107,12 +107,18 @@ Checklist, in order (from the audit):
    pins 27-30, reset 13, irq 14, 9.6 MHz, MP tables verbatim); no
    Makefile/Kconfig changes needed (TOUCH_LISTS mechanism). Defconfig:
    added `INPUT_TOUCHSCREEN=y` (third silent-drop catch).
-5. **Camera:** in progress — sensor sets are disjoint. Only `ov16a1q`
-   exists in 5.10 (everpal's ofilm variant needs adapting, not porting).
-   Missing and being ported from 4.14 (same dir layout +
-   `imgsensor_sensor_list` wiring): imx355 (+imx355sunny), ov50c40,
-   s5kjn1, ov16a1qqtech. No camera dtsi until the drivers land (wiring
-   one early would break the build).
+5. **Camera:** ✅ done 2026-09-24 — 4 sensor drivers ported from 4.14
+   (imx355×2, ov50c40, s5kjn1); mechanism decoded (not as assumed):
+   `CUSTOM_KERNEL_IMGSENSOR` string → `FILTER_DRV` → `-D` flags guard
+   `sensor_list.c` (no per-sensor Kconfig); all 5 sensor Makefiles
+   rewritten to the 5.10 `imgsensor_isp6s-objs` pattern. ov16a1q resolved
+   by silicon ID (everpal ofilm/qtech = 0x1641/0x1642 = existing
+   AAC/SUNNY drivers — mapped by name, no port; stub dirs keep the `-D`
+   machinery honest). Added IDs/DRVNAMEs to `kd_imgsensor.h`, 6 list
+   entries, everpal CUSTOM string, `cust_mt6833_everpal_camera.dtsi`
+   (everpal GPIOs/eeproms) + missing `wl2866d.dtsi` + `wl2866d.c`
+   regulator port. Two more silent-drop kills: `CONFIG_REGULATOR` itself
+   was off, and the SYSTEM heap needed its helper symbols.
 6. **NFC** (`i2c3`/`st21nfc`): ✅ done 2026-09-23 — adapted, not copied:
    5.10's st21nfc binds `st,st21nfc` + `irq-gpios`/`reset-gpios`, while
    4.14's `mediatek,nfc-gpio-v2` bare-number style is incompatible. New
@@ -131,8 +137,11 @@ Checklist, in order (from the audit):
    `INPUT_FINGERPRINT_FPC1542` resolve.
 8. **Haptics** (`i2c9`/`aw8697`): full port last — driver + node +
    calibration verbatim. Biggest single item; **not needed for boot.**
-9. **Audio:** enable `SND_SOC_MT6359P` modules; resolve the
-   `ACCDET_EINT_IRQ` binding question (§10).
+9. **Audio:** ✅ done 2026-09-24 — no 4.14-style EINT binding needed.
+   5.10's `mt6359p-accdet` takes IRQs via `platform_get_irq()` from its
+   own DT node, already present as a PMIC child in `mt6359p.dtsi`
+   (included by base) with everpal-identical calibration values.
+   Nothing to wire — audio probing is a non-issue for bringup.
 10. **Boot test gates:** `sys.boot_completed=1` → dumpsys gpu →
     verifydevice.py. Scheduler work (WALT/BORE/EAS) is explicitly
     deferred — not needed for stock boot.
@@ -298,3 +307,12 @@ check these new locations first. **Extend this list as you discover more.**
   on `everpal-5.10`. Item 5 (camera) unblocked as a sensor-driver port:
   imx355/ov50c40/s5kjn1/ov16a1qqtech from 4.14, ov16a1q ofilm adapted in
   place. Item 9 (audio ACCDET binding) still open.
+- **2026-09-24 (early):** Phase 1 board adaptation COMPLETE (items 1–7,
+  9; item 8 haptics deferred past boot per plan). Camera: 4 sensor
+  drivers ported, imgsensor `-D` flag mechanism decoded, ov16a1q mapped
+  by silicon ID (no port), wl2866d regulator ported; two more
+  silent-drop kills (`CONFIG_REGULATOR`, SYSTEM heap helpers). Audio:
+  no EINT binding needed (`platform_get_irq`, node already in
+  `mt6359p.dtsi`). dtbs passes (77 KB blob, all peripheral compatibles
+  + 29 camera nodes verified). Committed on `everpal-5.10`. Next: first
+  full kernel build (item 10a/10b).
