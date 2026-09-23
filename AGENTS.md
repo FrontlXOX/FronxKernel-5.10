@@ -100,7 +100,10 @@ Checklist, in order (from the audit):
    active/sleep) + `onewire_gpio` + `maxim_ds28e16` nodes, verified in
    blob. Defconfig `BATT_VERIFY_BY_DS28E16=y` + `ONEWIRE_GPIO=y` resolve.
    Caveat: 4.14-era driver needs a compile check at first full build
-   (API drift unknown).
+   (API drift unknown). Known issue (2026-09-24): `ONEWIRE_GPIO` is now
+   defined twice — ported `drivers/misc/maxim/Kconfig` (bool) vs
+   `drivers/power/supply/battery_secrete/Kconfig` (tristate); resolves
+   to our `=y`, harmless, unify later.
 4. **Touch:** ✅ done 2026-09-23 — neither 5.10 candidate dtsi fits
    (verified, not guessed: wrong chip / wrong bus+GPIO). Created
    `cust_mt6833_everpal_touch_nt36672c.dtsi` from 4.14 content (SPI1
@@ -326,4 +329,7 @@ check these new locations first. **Extend this list as you discover more.**
 - **2026-09-24 (early):** Toolchain gate: gold tree expects clang-r416183b
   (absent from disk); ZyC Clang 22 + system gcc-15 cross present. Decision:
   fetch genuine r416183b for the first build, ZyC-22 for iteration after
-  boot. Fetch + build instructed, awaiting result.
+  boot. Fetch succeeded (Clang 12.0.5 verified). First build attempt failed
+  in 28s on the `modules` goal — donor builds monolithic, goal invalid;
+  retry with `Image.gz dtbs`. Defconfig cruft noted (not blocking):
+  `SND_SOC_MT6789_MT6366`/`SND_SOC_MT6885_MT6359P` enabled for other SoCs.
