@@ -236,8 +236,15 @@ check these new locations first. **Extend this list as you discover more.**
 ## 9. Build & test
 
 - **Defconfig start:** `k6833pv1_64_k510_defconfig` → `everpal_510_defconfig`
-- **Toolchain:** as per the gold tree / existing `build.sh` — verify before
-  the first build, do not assume.
+- **Toolchain:** clang-r416183b (AOSP prebuilt, per gold
+  `build.config.common`: `LLVM=1 LLVM_IAS=1`,
+  `CROSS_COMPILE=aarch64-linux-gnu-`) at
+  `/root/EverpalTweaks/build/toolchains/clang-r416183b/`. Decision
+  2026-09-24: genuine r416183b for the first build (eliminates the
+  toolchain as a variable when bringup failures land); ZyC Clang 22
+  (`/root/EverpalTweaks/build/toolchains/ZyC-clang-22.0.0/`) for
+  iteration after boot. System aarch64-linux-gnu-gcc 15.2 provides the
+  cross-prefix binutils.
 - **Toolchain quirk (2026-09-23):** host dtc 1.7.2 rejects explicit
   `fragment@N` blocks (proven with minimal repro) — new root nodes in
   overlays must use the `&{/}` override style.
@@ -316,3 +323,7 @@ check these new locations first. **Extend this list as you discover more.**
   `mt6359p.dtsi`). dtbs passes (77 KB blob, all peripheral compatibles
   + 29 camera nodes verified). Committed on `everpal-5.10`. Next: first
   full kernel build (item 10a/10b).
+- **2026-09-24 (early):** Toolchain gate: gold tree expects clang-r416183b
+  (absent from disk); ZyC Clang 22 + system gcc-15 cross present. Decision:
+  fetch genuine r416183b for the first build, ZyC-22 for iteration after
+  boot. Fetch + build instructed, awaiting result.
