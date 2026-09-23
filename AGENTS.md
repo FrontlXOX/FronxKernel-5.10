@@ -353,3 +353,9 @@ check these new locations first. **Extend this list as you discover more.**
   function `set_idac_trim_val` in donor `mt6338.c`. Fix approved: delete
   the dead lines in our port; for the donor file, remove only if verified
   truly unreferenced, else report first.
+- **2026-09-24 (early):** Rebuild #3 in progress, fixing `-Werror`/config
+  issues as the build reaches them (prove-then-fix-minimally):
+  `rpmb-mtk.c` — hoisted `mtk_mmc_host[]` out of the
+  `CONFIG_MMC_MTK_PRO` guard (`__maybe_unused`) for the Trustonic-DCI
+  users; landmine noted: `mtk-mmc-dbg.c` has a same-named array, unify if
+  `CONFIG_MMC_DEBUG` is ever enabled. Queued: mt6368/gpufreq/ged_kpi.
