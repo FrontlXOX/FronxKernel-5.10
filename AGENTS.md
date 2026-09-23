@@ -366,3 +366,14 @@ check these new locations first. **Extend this list as you discover more.**
   REGULATOR, INPUT_TOUCHSCREEN. Fix approved: `CONFIG_CPU_FREQ=y` +
   `CONFIG_ARM_MEDIATEK_CPUFREQ_HW=y` (HW-engine driver matches MT6833).
   ds28e16 deferred to battery phase; ged_kpi still awaiting DRM call.
+- **2026-09-24 (early):** Defconfig hygiene rule: after adding new
+  symbols (ANDROID/STAGING pulled in prompts), refresh out/.config
+  with `olddefconfig` (non-interactive), never plain defconfig; fold
+  the new defaults back into everpal_510_defconfig.
+- **2026-09-24 (early):** ged_kpi resolved without a new change — the
+  #if !DRM && HIGH_FRAME_RATE guard around #include "disp_arr.h"
+  (ged_kpi.c:54-56) was already in tree; builds 10-13 pass it. No
+  DRM enable, no gating needed.
+- **2026-09-24 (early):** Possible 5th silent-incomplete: CONFIG_COMPAT
+  unset (atf_log.c needs proc_compat_ioctl). Check donor first; if
+  donor sets it, enable; else re-gate the source line on CONFIG_COMPAT.
