@@ -76,12 +76,21 @@ machine — `android_kernel_xiaomi_mt6833#lineage-24.0` vs
 
 Checklist, in order (from the audit):
 
-1. **Board file shell:** new everpal 5.10 `.dts` on the 5.10 `mt6833.dts`
-   base. Stub the missing `#include <k6833pv1_64_k510/cust.dtsi>` vendor
-   overlay — the build breaks without it.
-2. **Defconfig** (`arch/arm64/configs/`): MT6360 new-gen symbols (`=m`),
-   audio `SND_SOC_MT6833`/`MT6359P` modules, touch string incl. NT36672C.
-   Decide ION-vs-dmabuf per the donor.
+1. **Board file shell:** ✅ done 2026-09-23 — `everpal-510.dts` +
+   `everpal-510/cust.dtsi` stub on the 5.10 `mt6833.dts` base; everpal
+   deltas applied (`mt6360_typec` intr pio9, `&chosen` verbatim);
+   display GPIOs verified identical both sides (no pinmux adaptation);
+   dtc-clean (23 KB blob, `lcmname` + `intr_gpio_num=0x9` verified).
+   New branch `everpal-5.10` in the `kernel_xiaomi_gold` fork;
+   `gold-s-oss` stays a pristine donor.
+2. **Defconfig** (`arch/arm64/configs/`): ✅ done 2026-09-23 —
+   `everpal_510_defconfig` (donor + 6 lines). All audit MT6360/audio/
+   touch mappings were already present. Fixed 2 silent-drops: the
+   `CONFIG_SOUND`/`_SND`/`_SND_SOC` parent stack (entire audio dropped)
+   and `DMABUF_HEAPS` + `DEFERRED_FREE`/`PAGE_POOL` parents. ION
+   decision: dmabuf heaps, no ION. Note: this donor builds monolithic
+   (`# CONFIG_MODULES` unset) — zero module-load-order hazards for
+   bringup; revisit modularization later.
 3. **Battery auth:** adapt the `auth_battery.dtsi` pattern → GPIO53 +
    `ds28e16` compat in `drivers/power/supply/battery_secrete/ds28e30.c`
    (or port `drivers/misc/maxim/`); needs a ONEWIRE_GPIO-equivalent path.
@@ -181,6 +190,13 @@ check these new locations first. **Extend this list as you discover more.**
 8. **Build machine access:** SSH via Tailscale to the WSL build host when
    available (`ssh -F ~/workspace/ssh_wsl/ssh_config wsl`). If SSH is down,
    say so and wait — do not improvise a different build environment.
+9. **Defconfig silent-drop check (standing rule).** The donor defconfig
+   sets leaf symbols whose parent menus are off — they silently vanish
+   from the resolved config. Every defconfig edit must be validated:
+   `make O=/tmp/<tmp> ARCH=arm64 <defconfig>` into a temp dir, grep the
+   resolved `.config` values, delete the temp dir. 30 seconds, catches
+   the whole bug class. (Caught twice on 2026-09-23: the SOUND stack and
+   DMABUF_HEAPS parents.)
 
 ## 9. Build & test
 
@@ -230,3 +246,11 @@ check these new locations first. **Extend this list as you discover more.**
   compat, the camera sensor list, and NFC verification. BORE is not a
   default-tweak in 5.10 (no MTK EAS in the donor) — it becomes a
   scheduler-backport task. Nothing structural blocks a stock boot.
+- **2026-09-23 (night):** Phase 1 items 1–2 complete, reviewed, approved:
+  `everpal-510.dts` board shell (+ `cust.dtsi` stub, dtc-clean) and
+  `everpal_510_defconfig` (donor + 6 lines; fixed silent-dropped SOUND
+  and DMABUF_HEAPS parents; ION-vs-dmabuf → dmabuf heaps; donor is
+  monolithic — no module-load-order hazards for bringup). Work committed
+  on new `everpal-5.10` branch in the `kernel_xiaomi_gold` fork;
+  `gold-s-oss` stays pristine. Standing rule added: temp-dir
+  resolved-grep check on every defconfig edit.
