@@ -402,3 +402,15 @@ check these new locations first. **Extend this list as you discover more.**
 - **2026-09-24 (early):** Defconfig prompts fully resolved — zero
   config prompts in build 16. The earlier persistence was build-time
   sync answering from EOF; with all values stored it's silent.
+- **2026-09-24 (early):** mkp_demo pattern: demo code with vendor's own
+  toggle (mkp/Makefile:13 demo_mkp) — disable the toggle with rationale
+  rather than hacking the code. Verified no production users of demo
+  globals first (mkp_main.c:58 already #ifdef DEMO_MKP-gated).
+- **2026-09-24 (early):** uclamp pattern (fbt_cpu_platform.c): when a
+  scheduler-internal function (uclamp_eff_value, CONFIG_UCLAMP_TASK-only
+  in kernel/sched/sched.h) is unreachable from drivers, gate the block
+  on the config with #else ret = 0 — don't pretend to clamp when the
+  feature is unavailable. Move decls inside the guard for -Werror.
+- **2026-09-24 (early):** vow pattern: missing -I for
+  mediatek/include/mt-plat — sibling aee/Makefile:17 has it; add the
+  same ccflags-y line to the driver's own Makefile.
