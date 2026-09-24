@@ -414,3 +414,17 @@ check these new locations first. **Extend this list as you discover more.**
 - **2026-09-24 (early):** vow pattern: missing -I for
   mediatek/include/mt-plat — sibling aee/Makefile:17 has it; add the
   same ccflags-y line to the driver's own Makefile.
+- **2026-09-24 (early):** Donor finding (build 23): donor defconfig
+  resolves to NET=n, MDDP=y, EAS=y, UCLAMP_TASK off — the donor tree
+  itself cannot compile sched/eas or mddp_filter. We're finishing a
+  port the donor never completed, not diverging from working code.
+  "Match the donor" is ruled out; the choice is what standard infra
+  to enable vs. what to honestly gate.
+- **2026-09-24 (early):** Self-healing Kconfig gate pattern: when a
+  driver needs a whole subsystem (EAS→UCLAMP_TASK, MDDP→NETFILTER),
+  don't enable the subsystem to satisfy the driver. Instead:
+  Makefile-gate the objects on the driver's own CONFIG symbol +
+  add depends on <subsystem> to its Kconfig. Auto-disables now,
+  self-heals when the subsystem lands deliberately. Zero defconfig
+  edits. (Precedent: sched/Makefile already gates core_pause/rotate
+  on CONFIG_ in the same file.)
